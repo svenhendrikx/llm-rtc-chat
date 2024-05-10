@@ -1,0 +1,7 @@
+faster_whisper
+openai
+together
+rich
+webrtcvad
+aiortc
+numpy

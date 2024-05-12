@@ -24,7 +24,7 @@ import soundfile as sf
 model_size = "distil-small.en"
 
 # Run on GPU with FP16
-device = 'cuda'
+device = 'cpu'
 compute_type = 'int8' if device == 'cpu' else 'float16'
 
 model = WhisperModel(model_size,
@@ -57,9 +57,24 @@ class VADAudioTrack(AudioStreamTrack):
 
         self.queue = queue
 
+        #debugstuff
+        self.framertons = []
+        self.framecount = 0
+
     async def recv(self):
         _frame = await self.source_track.recv()
         frame_array = _frame.to_ndarray()[0]
+        
+        print(len( _frame.to_ndarray() ))
+        self.framertons.append(frame_array)
+        self.framecount += 1
+        print(self.framecount)
+        if not self.framecount < 100:
+            print("writing raw sample")
+            result = np.concatenate(self.framertons, axis=0)
+            sf.write('recordings/raw_{}.wav'.format(time()), result, 48000)
+            self.framertons = []
+            self.framecount = 0
         
         # Assuming frame_array is already int16, check this assumption
         if frame_array.dtype != np.int16:
@@ -72,12 +87,7 @@ class VADAudioTrack(AudioStreamTrack):
         
         start = time()
 
-        framertons = []
-        for i, frame in enumerate(frames):
-            print(type(frame))
-            if i % 100 == 0:
-                print("writing raw sample")
-                sf.write('recordings/raw_{}.wav'.format(time()), result, 48000)
+        for frame in frames:
 
             # Convert numpy array to bytes, ensure it is int16
             byte_frame = frame.astype(np.int16).tobytes()
@@ -168,10 +178,11 @@ async def offer(request):
             
             async def transcribe_segments(segments):
                 async for segment in segments:
-                    start = time()
-                    for x in model.transcribe(segment)[0]:
-                        print(x)
-                    print(time() - start)
+                    print(len( segment ))
+                    # start = time()
+                    # for x in model.transcribe(segment)[0]:
+                    #     print(x)
+                    # print(time() - start)
             
             processor_task = asyncio.create_task(transcribe_segments(audio_segments))
 
